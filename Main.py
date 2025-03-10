@@ -13,14 +13,14 @@ class Suit(Enum):
 
 class HandType(Enum):
     HIGH_CARD = ("High Card", 10, 1)
-    PAIR = ("Pair", 15, 1.5)
-    TWO_PAIR = ("Two Pair", 20, 2)
-    THREE_OF_A_KIND = ("Three of a Kind", 25, 2.5)
-    STRAIGHT = ("Straight", 30, 3)
+    PAIR = ("Pair", 15, 2)
+    TWO_PAIR = ("Two Pair", 25, 2)
+    THREE_OF_A_KIND = ("Three of a Kind", 30, 3)
+    STRAIGHT = ("Straight", 30, 4)
     FLUSH = ("Flush", 35, 4)
-    FULL_HOUSE = ("Full House", 40, 5)
-    FOUR_OF_A_KIND = ("Four of a Kind", 50, 6)
-    STRAIGHT_FLUSH = ("Straight Flush", 75, 8)
+    FULL_HOUSE = ("Full House", 40, 4)
+    FOUR_OF_A_KIND = ("Four of a Kind", 60, 7)
+    STRAIGHT_FLUSH = ("Straight Flush", 100, 8)
     ROYAL_FLUSH = ("Royal Flush", 100, 10)
 
     def __init__(self, label, chips, mult):
