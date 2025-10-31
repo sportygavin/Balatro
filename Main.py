@@ -384,9 +384,10 @@ class Game:
                         self.handle_joker_sell(mouse_pos)
                     else:
                         # Check sort buttons first
-                        button_x = 1020
-                        button_y = 5
                         button_width = 100
+                        # Position buttons at top-right with 20px right margin
+                        button_x = 1280 - 20 - (button_width * 2 + 5)
+                        button_y = 5
                         button_height = 28
                         
                         if (button_x <= mouse_pos[0] <= button_x + button_width and
@@ -450,9 +451,9 @@ class Game:
     def handle_card_click(self, pos):
         x, y = pos
         # Calculate card starting position (same as in draw_play_phase)
-        joker_panel_x = 1020
-        max_card_end_x = joker_panel_x - 20
-        left_margin = 370
+        screen_width = 1280
+        max_card_end_x = screen_width - 20
+        left_margin = 250
         
         total_card_width = len(self.hand) * self.card_spacing - (self.card_spacing - self.card_width)
         available_width = max_card_end_x - left_margin
@@ -462,7 +463,7 @@ class Game:
         else:
             start_x = left_margin
         
-        card_y = 280
+        card_y = 340
         
         card_x = start_x
         for card in self.hand:
@@ -493,19 +494,23 @@ class Game:
 
     def handle_joker_sell(self, pos):
         x, y = pos
-        joker_panel_x = 1020
-        joker_panel_y = 30
-        joker_panel_width = 230
-        joker_y = joker_panel_y + 55
-        joker_spacing = 100
-        
-        for i, joker in enumerate(self.jokers):
+        # Top horizontal joker bar layout must match draw_play_phase
+        bar_x = 350
+        bar_y = 30
+        bar_width = 1280 - bar_x - 20
+        # Joker card size and spacing in the bar
+        joker_width = 140
+        joker_height = 85
+        joker_spacing = 150
+        start_x = bar_x + 15
+        start_y = bar_y + 45
+
+        for i, _ in enumerate(self.jokers):
             if i >= 6:
                 break
-            current_joker_y = joker_y + i * joker_spacing
-            
-            if (joker_panel_x + 10 <= x <= joker_panel_x + joker_panel_width - 10 and
-                current_joker_y <= y <= current_joker_y + 85):
+            jx = start_x + i * joker_spacing
+            jy = start_y
+            if (jx <= x <= jx + joker_width and jy <= y <= jy + joker_height):
                 self.sell_joker(i)
                 break
 
@@ -581,10 +586,9 @@ class Game:
     def draw_play_phase(self):
         self.screen.fill((15, 25, 35))  # Dark blue-gray background
         
-        # Calculate card positioning - ensure cards don't overlap with joker panel
-        joker_panel_x = 1020
-        max_card_end_x = joker_panel_x - 20  # Leave 20px margin before joker panel
-        left_margin = 370  # Left side panel ends around 350, add margin
+        # Calculate card positioning - cards use full width minus right margin
+        max_card_end_x = 1280 - 20  # 20px right margin
+        left_margin = 250  # Align just right of the left info panel
         
         # Calculate total width needed for all cards
         total_card_width = len(self.hand) * self.card_spacing - (self.card_spacing - self.card_width)
@@ -599,7 +603,7 @@ class Game:
             # Cards don't fit with current spacing, start from left margin
             start_x = left_margin
         
-        card_y = 280  # Vertical position for cards
+        card_y = 340  # Lower the row of cards slightly
         
         # Draw cards in hand
         x = start_x
@@ -640,46 +644,44 @@ class Game:
             self.screen.blit(value_text, (panel_x + 120, y_offset))
             y_offset += line_height
 
-        # Draw jokers panel (right side)
-        joker_panel_x = 1020
-        joker_panel_y = 30
-        joker_panel_width = 230
-        self.draw_panel(self.screen, joker_panel_x, joker_panel_y, joker_panel_width, 680, (40, 35, 25))
-        
+        # Draw jokers bar (top horizontal)
+        joker_bar_x = left_margin
+        joker_bar_y = 30
+        joker_bar_width = 1280 - joker_bar_x - 20
+        joker_bar_height = 110
+        self.draw_panel(self.screen, joker_bar_x, joker_bar_y, joker_bar_width, joker_bar_height, (40, 35, 25))
+
         # Joker title
         joker_title = self.medium_font.render("Jokers", True, (255, 220, 100))
-        self.screen.blit(joker_title, (joker_panel_x + 15, joker_panel_y + 15))
-        
-        # Draw jokers
-        joker_y = joker_panel_y + 55
-        joker_spacing = 100
-        for i, joker in enumerate(self.jokers):
-            if i >= 6:
-                break
-            # Joker card background
-            joker_card_rect = pygame.Rect(joker_panel_x + 10, joker_y, joker_panel_width - 20, 85)
+        self.screen.blit(joker_title, (joker_bar_x + 15, joker_bar_y + 12))
+
+        # Draw jokers horizontally
+        j_start_x = joker_bar_x + 15
+        j_start_y = joker_bar_y + 45
+        j_width = 140
+        j_height = 85
+        j_spacing = 150
+        for i, joker in enumerate(self.jokers[:6]):
+            jx = j_start_x + i * j_spacing
+            jy = j_start_y
+            joker_card_rect = pygame.Rect(jx, jy, j_width, j_height)
             pygame.draw.rect(self.screen, (250, 220, 50), joker_card_rect, border_radius=6)
             pygame.draw.rect(self.screen, (200, 170, 0), joker_card_rect, width=2, border_radius=6)
-            
-            # Joker name (truncate if too long)
+
             name = joker.type.value[0]
-            if len(name) > 20:
-                name = name[:17] + "..."
+            if len(name) > 16:
+                name = name[:13] + "..."
             name_text = self.small_font.render(name, True, (40, 20, 0))
-            self.screen.blit(name_text, (joker_panel_x + 15, joker_y + 8))
-            
-            # Description (truncate if needed)
+            self.screen.blit(name_text, (jx + 8, jy + 6))
+
             desc = joker.type.value[1]
-            if len(desc) > 25:
-                desc = desc[:22] + "..."
+            if len(desc) > 18:
+                desc = desc[:15] + "..."
             desc_text = self.small_font.render(desc, True, (80, 60, 0))
-            self.screen.blit(desc_text, (joker_panel_x + 15, joker_y + 30))
-            
-            # Sell info
+            self.screen.blit(desc_text, (jx + 8, jy + 28))
+
             sell_text = self.small_font.render(f"Sell: ${joker.cost//2}", True, (100, 50, 0))
-            self.screen.blit(sell_text, (joker_panel_x + 15, joker_y + 60))
-            
-            joker_y += joker_spacing
+            self.screen.blit(sell_text, (jx + 8, jy + 52))
         
         # Draw preview panel (below cards)
         if any(card.selected for card in self.hand):
@@ -719,10 +721,10 @@ class Game:
             self.screen.blit(text, (inst_panel_x + 15, y_pos))
             y_pos += 20
 
-        # Draw sort buttons (top right, above jokers)
-        button_x = joker_panel_x
-        button_y = 5
+        # Draw sort buttons (top right)
         button_width = 100
+        button_x = 1280 - 20 - (button_width * 2 + 5)
+        button_y = 5
         button_height = 28
         
         # Rank sort button
