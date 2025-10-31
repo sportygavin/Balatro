@@ -3,6 +3,7 @@ import random
 from enum import Enum
 from collections import Counter
 import os
+import math
 
 # Card suits and ranks
 class Suit(Enum):
@@ -148,11 +149,29 @@ class Game:
         self.round_complete = False
         
         # Card display settings
-        self.card_width = 100
-        self.card_height = 150
-        self.card_spacing = 110
+        self.card_width = 120
+        self.card_height = 168
+        self.card_spacing = 125
         self.card_back = pygame.Surface((self.card_width, self.card_height))
         self.card_back.fill((255, 255, 255))
+        
+        # Initialize fonts
+        try:
+            self.title_font = pygame.font.Font(None, 48)
+            self.large_font = pygame.font.Font(None, 40)
+            self.medium_font = pygame.font.Font(None, 32)
+            self.small_font = pygame.font.Font(None, 24)
+            self.card_rank_font = pygame.font.Font(None, 36)
+            self.card_suit_font = pygame.font.Font(None, 48)
+            self.card_center_font = pygame.font.Font(None, 72)
+        except:
+            self.title_font = pygame.font.SysFont("arial", 48)
+            self.large_font = pygame.font.SysFont("arial", 40)
+            self.medium_font = pygame.font.SysFont("arial", 32)
+            self.small_font = pygame.font.SysFont("arial", 24)
+            self.card_rank_font = pygame.font.SysFont("arial", 36)
+            self.card_suit_font = pygame.font.SysFont("arial", 48)
+            self.card_center_font = pygame.font.SysFont("arial", 72)
 
     def create_deck(self):
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
@@ -365,13 +384,19 @@ class Game:
                         self.handle_joker_sell(mouse_pos)
                     else:
                         # Check sort buttons first
-                        if 900 <= mouse_pos[0] <= 1000:  # X position for sort buttons
-                            if 50 <= mouse_pos[1] <= 80:  # Rank sort button
-                                self.sort_by_rank = True
-                                self.sort_cards()
-                            elif 90 <= mouse_pos[1] <= 120:  # Suit sort button
-                                self.sort_by_rank = False
-                                self.sort_cards()
+                        button_x = 1020
+                        button_y = 5
+                        button_width = 100
+                        button_height = 28
+                        
+                        if (button_x <= mouse_pos[0] <= button_x + button_width and
+                            button_y <= mouse_pos[1] <= button_y + button_height):
+                            self.sort_by_rank = True
+                            self.sort_cards()
+                        elif (button_x + button_width + 5 <= mouse_pos[0] <= button_x + button_width * 2 + 5 and
+                              button_y <= mouse_pos[1] <= button_y + button_height):
+                            self.sort_by_rank = False
+                            self.sort_cards()
                         else:
                             self.handle_card_click(mouse_pos)
                             self.update_preview_score()
@@ -424,34 +449,63 @@ class Game:
 
     def handle_card_click(self, pos):
         x, y = pos
-        card_x = 100
+        # Calculate card starting position (same as in draw_play_phase)
+        joker_panel_x = 1020
+        max_card_end_x = joker_panel_x - 20
+        left_margin = 370
         
+        total_card_width = len(self.hand) * self.card_spacing - (self.card_spacing - self.card_width)
+        available_width = max_card_end_x - left_margin
+        
+        if total_card_width <= available_width:
+            start_x = left_margin + (available_width - total_card_width) // 2
+        else:
+            start_x = left_margin
+        
+        card_y = 280
+        
+        card_x = start_x
         for card in self.hand:
             if (card_x <= x <= card_x + self.card_width and 
-                250 <= y <= 250 + self.card_height):
+                card_y <= y <= card_y + self.card_height):
                 # Only allow selection if under max or card is already selected
                 if not card.selected and sum(1 for c in self.hand if c.selected) >= self.max_selected:
                     continue
                 card.selected = not card.selected
+                break
             card_x += self.card_spacing
 
     def handle_shop_click(self, pos):
         x, y = pos
+        shop_start_y = 150
+        joker_width = 350
+        joker_height = 160
+        joker_spacing = 180
+        center_x = 640
+        joker_x = center_x - (joker_width // 2)
+        
         for i in range(len(self.shop_jokers)):
-            # Expand clickable area to match the visual joker card size
-            if 100 <= x <= 400 and 150 + i * 100 <= y <= 230 + i * 100:
+            joker_click_y = shop_start_y + i * joker_spacing
+            if (joker_x <= x <= joker_x + joker_width and 
+                joker_click_y <= y <= joker_click_y + joker_height):
                 self.buy_joker(i)
+                break
 
     def handle_joker_sell(self, pos):
         x, y = pos
-        base_x = 750
+        joker_panel_x = 1020
+        joker_panel_y = 30
+        joker_panel_width = 230
+        joker_y = joker_panel_y + 55
+        joker_spacing = 100
         
         for i, joker in enumerate(self.jokers):
-            joker_x = base_x + (260 if i >= 3 else 0)
-            joker_y = 50 + (70 * (i % 3))
+            if i >= 6:
+                break
+            current_joker_y = joker_y + i * joker_spacing
             
-            if (joker_x <= x <= joker_x + 250 and 
-                joker_y <= y <= joker_y + 60):
+            if (joker_panel_x + 10 <= x <= joker_panel_x + joker_panel_width - 10 and
+                current_joker_y <= y <= current_joker_y + 85):
                 self.sell_joker(i)
                 break
 
@@ -525,133 +579,244 @@ class Game:
         pygame.display.flip()
 
     def draw_play_phase(self):
-        self.screen.fill((20, 71, 41))
+        self.screen.fill((15, 25, 35))  # Dark blue-gray background
         
-        # Draw cards in hand with adjusted spacing
-        x = 100  # Start further left
+        # Calculate card positioning - ensure cards don't overlap with joker panel
+        joker_panel_x = 1020
+        max_card_end_x = joker_panel_x - 20  # Leave 20px margin before joker panel
+        left_margin = 370  # Left side panel ends around 350, add margin
+        
+        # Calculate total width needed for all cards
+        total_card_width = len(self.hand) * self.card_spacing - (self.card_spacing - self.card_width)
+        
+        # Calculate available width
+        available_width = max_card_end_x - left_margin
+        
+        # If cards fit, center them. Otherwise, scale spacing or start from left margin
+        if total_card_width <= available_width:
+            start_x = left_margin + (available_width - total_card_width) // 2
+        else:
+            # Cards don't fit with current spacing, start from left margin
+            start_x = left_margin
+        
+        card_y = 280  # Vertical position for cards
+        
+        # Draw cards in hand
+        x = start_x
         for card in self.hand:
-            color = (180, 180, 180) if card.selected else (255, 255, 255)
-            pygame.draw.rect(self.screen, color, (x, 250, self.card_width, self.card_height))
-            pygame.draw.rect(self.screen, (0, 0, 0), (x, 250, self.card_width, self.card_height), 2)
-            
-            font = pygame.font.Font(None, 48)
-            text_color = (255, 0, 0) if card.suit in [Suit.HEARTS, Suit.DIAMONDS] else (0, 0, 0)
-            
-            card_text = card.get_display_str()
-            text = font.render(card_text, True, text_color)
-            text_x = x + (self.card_width - text.get_width()) // 2
-            text_y = 250 + (self.card_height - text.get_height()) // 2
-            self.screen.blit(text, (text_x, text_y))
-            
+            self.draw_card(self.screen, x, card_y, card, card.selected)
             x += self.card_spacing
 
-        # Draw game info panel
-        info_font = pygame.font.Font(None, 36)
-        pygame.draw.rect(self.screen, (0, 0, 0, 128), (20, 20, 300, 200))
+        # Draw game info panel (left side)
+        panel_width = 320
+        panel_height = 240
+        panel_x = 30
+        panel_y = 30
+        self.draw_panel(self.screen, panel_x, panel_y, panel_width, panel_height, (30, 40, 50))
         
-        texts = [
-            f"Ante: {self.ante}",
-            f"Round: {self.ante_round}/3",
-            f"Target: {self.target_score}",
-            f"Score: {self.current_score}",
-            f"Money: ${self.money}",  # Changed from chips to money
-            f"Base Mult: x{self.base_mult:.1f}",
-            f"Discards Left: {self.discards_remaining}",
-            f"Hands Left: {self.hands_remaining}"
+        y_offset = panel_y + 20
+        line_height = 28
+        
+        # Title
+        title_text = self.large_font.render("Game Info", True, (255, 220, 100))
+        self.screen.blit(title_text, (panel_x + 15, y_offset))
+        y_offset += line_height + 5
+        
+        # Info items
+        info_items = [
+            ("Ante", str(self.ante)),
+            ("Round", f"{self.ante_round}/3"),
+            ("Target", str(self.target_score)),
+            ("Score", str(self.current_score)),
+            ("Money", f"${self.money}"),
+            ("Discards", str(self.discards_remaining)),
+            ("Hands", str(self.hands_remaining))
         ]
         
-        y = 30
-        for text in texts:
-            text_surface = info_font.render(text, True, (255, 255, 255))
-            self.screen.blit(text_surface, (30, y))
-            y += 25
+        for label, value in info_items:
+            label_text = self.small_font.render(f"{label}:", True, (180, 180, 200))
+            value_text = self.medium_font.render(value, True, (255, 255, 255))
+            self.screen.blit(label_text, (panel_x + 20, y_offset))
+            self.screen.blit(value_text, (panel_x + 120, y_offset))
+            y_offset += line_height
 
-        # Draw jokers with descriptions (adjusted layout)
-        joker_font = pygame.font.Font(None, 24)
-        x = 750
-        y = 50
+        # Draw jokers panel (right side)
+        joker_panel_x = 1020
+        joker_panel_y = 30
+        joker_panel_width = 230
+        self.draw_panel(self.screen, joker_panel_x, joker_panel_y, joker_panel_width, 680, (40, 35, 25))
+        
+        # Joker title
+        joker_title = self.medium_font.render("Jokers", True, (255, 220, 100))
+        self.screen.blit(joker_title, (joker_panel_x + 15, joker_panel_y + 15))
+        
+        # Draw jokers
+        joker_y = joker_panel_y + 55
+        joker_spacing = 100
         for i, joker in enumerate(self.jokers):
-            # Move to next column after 3 jokers
-            if i == 3:
-                x += 260
-                y = 50
+            if i >= 6:
+                break
+            # Joker card background
+            joker_card_rect = pygame.Rect(joker_panel_x + 10, joker_y, joker_panel_width - 20, 85)
+            pygame.draw.rect(self.screen, (250, 220, 50), joker_card_rect, border_radius=6)
+            pygame.draw.rect(self.screen, (200, 170, 0), joker_card_rect, width=2, border_radius=6)
             
-            pygame.draw.rect(self.screen, (255, 255, 0), (x, y, 250, 60))
-            name_text = joker_font.render(joker.type.value[0], True, (0, 0, 0))
-            desc_text = joker_font.render(joker.type.value[1], True, (0, 0, 0))
-            sell_text = joker_font.render(f"Right click to sell (${joker.cost//2})", True, (0, 0, 0))
+            # Joker name (truncate if too long)
+            name = joker.type.value[0]
+            if len(name) > 20:
+                name = name[:17] + "..."
+            name_text = self.small_font.render(name, True, (40, 20, 0))
+            self.screen.blit(name_text, (joker_panel_x + 15, joker_y + 8))
             
-            self.screen.blit(name_text, (x + 5, y + 5))
-            self.screen.blit(desc_text, (x + 5, y + 25))
-            self.screen.blit(sell_text, (x + 5, y + 45))
+            # Description (truncate if needed)
+            desc = joker.type.value[1]
+            if len(desc) > 25:
+                desc = desc[:22] + "..."
+            desc_text = self.small_font.render(desc, True, (80, 60, 0))
+            self.screen.blit(desc_text, (joker_panel_x + 15, joker_y + 30))
             
-            if i < 3:
-                y += 70
-
-        # Draw instructions
-        inst_font = pygame.font.Font(None, 24)
-        instructions = [
-            "SPACE: Play hand",
-            "D: Discard selected",
-            "N: Next round",
-            "S: Skip round (not on round 3)",
-            "Click cards to select"
-        ]
-        y = 650
-        for inst in instructions:
-            text = inst_font.render(inst, True, (255, 255, 255))
-            self.screen.blit(text, (20, y))
-            y += 25
-
-        # Draw preview information if cards are selected
+            # Sell info
+            sell_text = self.small_font.render(f"Sell: ${joker.cost//2}", True, (100, 50, 0))
+            self.screen.blit(sell_text, (joker_panel_x + 15, joker_y + 60))
+            
+            joker_y += joker_spacing
+        
+        # Draw preview panel (below cards)
         if any(card.selected for card in self.hand):
-            preview_font = pygame.font.Font(None, 36)
-            preview_texts = [
-                f"Preview Chips: {self.preview_chips}",
-                f"Preview Mult: x{self.preview_mult:.1f}",
-                f"Preview Score: {self.preview_score}"
+            preview_x = start_x
+            preview_y = card_y + self.card_height + 20
+            preview_width = min(total_card_width, 500)
+            self.draw_panel(self.screen, preview_x, preview_y, preview_width, 100, (20, 30, 40))
+            
+            preview_y_offset = preview_y + 15
+            preview_items = [
+                ("Chips", str(self.preview_chips)),
+                ("Mult", f"x{self.preview_mult:.1f}"),
+                ("Score", str(self.preview_score))
             ]
             
-            y = 450  # Position below cards
-            for text in preview_texts:
-                text_surface = preview_font.render(text, True, (255, 255, 0))
-                self.screen.blit(text_surface, (30, y))
-                y += 30
+            item_spacing = preview_width // 3
+            for i, (label, value) in enumerate(preview_items):
+                x_pos = preview_x + 20 + i * item_spacing
+                label_text = self.small_font.render(label, True, (180, 180, 200))
+                value_text = self.medium_font.render(value, True, (100, 255, 150))
+                self.screen.blit(label_text, (x_pos, preview_y_offset))
+                self.screen.blit(value_text, (x_pos, preview_y_offset + 25))
 
-        # Draw sort buttons
-        button_font = pygame.font.Font(None, 32)
+        # Draw instructions panel (bottom left)
+        inst_panel_x = 30
+        inst_panel_y = 680
+        inst_panel_width = 350
+        inst_panel_height = 70
+        self.draw_panel(self.screen, inst_panel_x, inst_panel_y, inst_panel_width, inst_panel_height, (25, 30, 35))
+        
+        instructions = [
+            "SPACE: Play  |  D: Discard  |  N: Next  |  S: Skip"
+        ]
+        y_pos = inst_panel_y + 12
+        for inst in instructions:
+            text = self.small_font.render(inst, True, (200, 200, 220))
+            self.screen.blit(text, (inst_panel_x + 15, y_pos))
+            y_pos += 20
+
+        # Draw sort buttons (top right, above jokers)
+        button_x = joker_panel_x
+        button_y = 5
+        button_width = 100
+        button_height = 28
         
         # Rank sort button
-        rank_color = (180, 180, 180) if self.sort_by_rank else (255, 255, 255)
-        pygame.draw.rect(self.screen, rank_color, (900, 50, 100, 30))
-        rank_text = button_font.render("Sort Rank", True, (0, 0, 0))
-        self.screen.blit(rank_text, (905, 55))
+        rank_bg = (80, 120, 150) if self.sort_by_rank else (50, 70, 90)
+        rank_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+        pygame.draw.rect(self.screen, rank_bg, rank_rect, border_radius=4)
+        pygame.draw.rect(self.screen, (120, 160, 200) if self.sort_by_rank else (70, 90, 110), 
+                        rank_rect, width=2, border_radius=4)
+        rank_text = self.small_font.render("Sort: Rank", True, (255, 255, 255))
+        self.screen.blit(rank_text, (button_x + 10, button_y + 6))
         
         # Suit sort button
-        suit_color = (180, 180, 180) if not self.sort_by_rank else (255, 255, 255)
-        pygame.draw.rect(self.screen, suit_color, (900, 90, 100, 30))
-        suit_text = button_font.render("Sort Suit", True, (0, 0, 0))
-        self.screen.blit(suit_text, (905, 95))
+        suit_bg = (80, 120, 150) if not self.sort_by_rank else (50, 70, 90)
+        suit_rect = pygame.Rect(button_x + button_width + 5, button_y, button_width, button_height)
+        pygame.draw.rect(self.screen, suit_bg, suit_rect, border_radius=4)
+        pygame.draw.rect(self.screen, (120, 160, 200) if not self.sort_by_rank else (70, 90, 110), 
+                        suit_rect, width=2, border_radius=4)
+        suit_text = self.small_font.render("Sort: Suit", True, (255, 255, 255))
+        self.screen.blit(suit_text, (button_x + button_width + 15, button_y + 6))
 
     def draw_shop_phase(self):
-        self.screen.fill((20, 71, 41))  # Keep same background as play phase
+        self.screen.fill((15, 25, 35))  # Same background as play phase
         
-        font = pygame.font.Font(None, 36)
-        title = font.render(f"Shop (Press N to continue) - Money: ${self.money}", True, (255, 255, 255))
-        self.screen.blit(title, (300, 50))
+        # Title panel
+        title_panel_x = 100
+        title_panel_y = 30
+        title_panel_width = 1080
+        title_panel_height = 80
+        self.draw_panel(self.screen, title_panel_x, title_panel_y, title_panel_width, title_panel_height, (40, 50, 60))
+        
+        title_text = self.title_font.render("SHOP", True, (255, 220, 100))
+        title_rect = title_text.get_rect(center=(title_panel_x + title_panel_width//2, title_panel_y + 25))
+        self.screen.blit(title_text, title_rect)
+        
+        money_text = self.large_font.render(f"Money: ${self.money}", True, (100, 255, 150))
+        money_rect = money_text.get_rect(center=(title_panel_x + title_panel_width//2, title_panel_y + 60))
+        self.screen.blit(money_text, money_rect)
+        
+        instruction_text = self.small_font.render("Press N to continue to next round", True, (200, 200, 220))
+        inst_rect = instruction_text.get_rect(center=(title_panel_x + title_panel_width//2, title_panel_y + title_panel_height - 15))
+        self.screen.blit(instruction_text, inst_rect)
 
+        # Draw shop jokers
+        shop_start_y = 150
+        joker_width = 350
+        joker_height = 160
+        joker_spacing = 180
+        center_x = 640  # Center of screen
+        
         for i, joker in enumerate(self.shop_jokers):
-            # Draw joker card
-            pygame.draw.rect(self.screen, (255, 255, 0), (100, 150 + i * 100, 300, 80))
+            joker_x = center_x - (joker_width // 2)
+            joker_y = shop_start_y + i * joker_spacing
             
-            # Draw joker info
-            name_text = font.render(f"{joker.type.value[0]}", True, (0, 0, 0))
-            cost_text = font.render(f"Cost: ${joker.cost}", True, (0, 0, 0))  # Changed to show $
-            desc_text = font.render(f"{joker.type.value[1]}", True, (0, 0, 0))
+            # Joker card background with shadow
+            self.draw_panel(self.screen, joker_x, joker_y, joker_width, joker_height, (250, 220, 50), alpha=255)
             
-            self.screen.blit(name_text, (110, 160 + i * 100))
-            self.screen.blit(cost_text, (110, 190 + i * 100))
-            self.screen.blit(desc_text, (110, 220 + i * 100))
+            # Inner border
+            joker_rect = pygame.Rect(joker_x + 5, joker_y + 5, joker_width - 10, joker_height - 10)
+            pygame.draw.rect(self.screen, (200, 170, 0), joker_rect, width=2, border_radius=6)
+            
+            # Joker name
+            name = joker.type.value[0]
+            name_text = self.large_font.render(name, True, (40, 20, 0))
+            self.screen.blit(name_text, (joker_x + 20, joker_y + 15))
+            
+            # Cost
+            cost_text = self.medium_font.render(f"Cost: ${joker.cost}", True, (150, 100, 0))
+            self.screen.blit(cost_text, (joker_x + 20, joker_y + 55))
+            
+            # Description (split into multiple lines if needed)
+            desc = joker.type.value[1]
+            desc_lines = []
+            if len(desc) > 40:
+                words = desc.split()
+                current_line = ""
+                for word in words:
+                    if len(current_line + word) > 40:
+                        desc_lines.append(current_line.strip())
+                        current_line = word + " "
+                    else:
+                        current_line += word + " "
+                desc_lines.append(current_line.strip())
+            else:
+                desc_lines = [desc]
+            
+            desc_y = joker_y + 90
+            for line in desc_lines:
+                desc_text = self.small_font.render(line, True, (80, 60, 0))
+                self.screen.blit(desc_text, (joker_x + 20, desc_y))
+                desc_y += 22
+            
+            # Click instruction
+            click_text = self.small_font.render("Click to buy", True, (100, 70, 0))
+            self.screen.blit(click_text, (joker_x + 20, joker_y + joker_height - 30))
 
     def update_preview_score(self):
         selected_cards = [card for card in self.hand if card.selected]
@@ -743,6 +908,97 @@ class Game:
             self.hand.sort(key=lambda card: (card.value, card.suit.value))
         else:  # sort by suit
             self.hand.sort(key=lambda card: (card.suit.value, card.value))
+    
+    def draw_card(self, surface, x, y, card, selected=False):
+        """Draw a professional-looking playing card"""
+        # Card dimensions
+        width = self.card_width
+        height = self.card_height
+        
+        # Shadow
+        shadow_offset = 4
+        shadow_rect = pygame.Rect(x + shadow_offset, y + shadow_offset, width, height)
+        shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(shadow_surf, (0, 0, 0, 100), (0, 0, width, height), border_radius=8)
+        surface.blit(shadow_surf, (x + shadow_offset, y + shadow_offset))
+        
+        # Main card background
+        if selected:
+            bg_color = (200, 220, 255)  # Light blue when selected
+            border_color = (100, 150, 255)
+            border_width = 3
+        else:
+            bg_color = (255, 255, 255)
+            border_color = (0, 0, 0)
+            border_width = 2
+        
+        # Draw card with rounded corners
+        card_rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(surface, bg_color, card_rect, border_radius=8)
+        pygame.draw.rect(surface, border_color, card_rect, width=border_width, border_radius=8)
+        
+        # Draw card content
+        if card.is_joker:
+            # Joker card design
+            joker_color = (200, 0, 200)
+            joker_text = self.medium_font.render("JKR", True, joker_color)
+            joker_rect = joker_text.get_rect(center=(x + width//2, y + height//2))
+            surface.blit(joker_text, joker_rect)
+        else:
+            # Regular card
+            is_red = card.suit in [Suit.HEARTS, Suit.DIAMONDS]
+            text_color = (220, 0, 0) if is_red else (0, 0, 0)
+            
+            # Get suit symbol and letter
+            suit_symbol = card.suit.value
+            suit_letter = {"♥": "H", "♦": "D", "♣": "C", "♠": "S"}.get(suit_symbol, "?")
+            
+            # Top left rank and suit with letter
+            rank_text = self.card_rank_font.render(card.rank, True, text_color)
+            suit_text = self.card_suit_font.render(suit_symbol, True, text_color)
+            suit_letter_text = self.small_font.render(suit_letter, True, text_color)
+            
+            # Position at top-left - rank, suit symbol, and letter
+            surface.blit(rank_text, (x + 10, y + 10))
+            surface.blit(suit_text, (x + 10, y + 35))
+            surface.blit(suit_letter_text, (x + 10, y + 58))
+            
+            # Center suit symbol (much larger and more visible)
+            center_suit = self.card_center_font.render(suit_symbol, True, text_color)
+            center_rect = center_suit.get_rect(center=(x + width//2, y + height//2 + 5))
+            surface.blit(center_suit, center_rect)
+            
+            # Add suit letter below center symbol for extra clarity
+            center_letter = self.medium_font.render(suit_letter, True, text_color)
+            center_letter_rect = center_letter.get_rect(center=(x + width//2, y + height//2 + 50))
+            surface.blit(center_letter, center_letter_rect)
+            
+            # Bottom right rank and suit (rotated)
+            rank_rotated = pygame.transform.rotate(rank_text, 180)
+            suit_rotated = pygame.transform.rotate(suit_text, 180)
+            suit_letter_rotated = pygame.transform.rotate(suit_letter_text, 180)
+            
+            surface.blit(rank_rotated, (x + width - rank_rotated.get_width() - 10, 
+                                       y + height - rank_rotated.get_height() - 10))
+            surface.blit(suit_rotated, (x + width - suit_rotated.get_width() - 10, 
+                                       y + height - suit_rotated.get_height() - 35))
+            surface.blit(suit_letter_rotated, (x + width - suit_letter_rotated.get_width() - 10, 
+                                               y + height - suit_letter_rotated.get_height() - 58))
+    
+    def draw_panel(self, surface, x, y, width, height, bg_color=(40, 40, 50), alpha=230):
+        """Draw a professional UI panel with shadow"""
+        # Shadow
+        shadow_offset = 3
+        shadow_rect = pygame.Rect(x + shadow_offset, y + shadow_offset, width, height)
+        shadow_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        pygame.draw.rect(shadow_surf, (0, 0, 0, 100), (0, 0, width, height), border_radius=6)
+        surface.blit(shadow_surf, (x + shadow_offset, y + shadow_offset))
+        
+        # Main panel
+        panel_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+        panel_surf.fill((*bg_color, alpha))
+        pygame.draw.rect(panel_surf, (100, 100, 120), (0, 0, width, height), width=2, border_radius=6)
+        surface.blit(panel_surf, (x, y))
 
     def calculate_money_reward(self):
         # Base money from hand type
